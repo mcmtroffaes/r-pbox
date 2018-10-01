@@ -23,6 +23,8 @@ setMethod("length", "Cdf", function(x) length(x@xs))
 
 setMethod("mean", "Cdf", function(x) mean(x@xs))
 
+setMethod("median", "Cdf", function(x) median(x@xs))
+
 # calculate the cdf as a function of x according the above
 # discrete representation (note: implementation is simple but slow)
 eval_cdf = function(cdf) function(x) {
@@ -73,6 +75,8 @@ eval_pbox_u = function(pbox) eval_cdf(pbox@u)
 eval_pbox_l = function(pbox) eval_cdf(pbox@l)
 
 setMethod("mean", "PBox", function(x) c(mean(x@u), mean(x@l)))
+
+setMethod("median", "PBox", function(x) c(median(x@u), median(x@l)))
 
 # Williamson & Downs, p. 126-127
 pbox_central_moment = function(pbox, k) {
