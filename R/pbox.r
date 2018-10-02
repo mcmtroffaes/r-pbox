@@ -5,127 +5,129 @@
 # ...
 # cdf(x)=1   for xn<=x
 
-check_cdf = function(object) {
-    if (length(object@xs) < 1L) "must contain at least one point"
-    else if (is.unsorted(object@xs)) "points must be sorted"
+check_discrete_cdf = function(object) {
+    if (length(object@points) < 1L) "must contain at least one point"
+    else if (is.unsorted(object@points)) "points must be sorted"
     else TRUE
 }
 
-setClass("Cdf", representation(xs="numeric"),
-         list(xs=0),
-         validity=check_cdf)
+setClass("DiscreteCdf", representation(points="numeric"),
+         list(points=0),
+         validity=check_discrete_cdf)
 
-setMethod("show", "Cdf", function(object) cat("points for cdf =", object@xs, "\n"))
+setMethod("show", "DiscreteCdf", function(object) cat("points for cdf =", object@points, "\n"))
 
-cdf = function(xs) new("Cdf", xs=xs)
+discrete_cdf = function(points) new("DiscreteCdf", points=points)
 
-setMethod("length", "Cdf", function(x) length(x@xs))
+setMethod("length", "DiscreteCdf", function(x) length(x@points))
 
-setMethod("mean", "Cdf", function(x) mean(x@xs))
+setMethod("mean", "DiscreteCdf", function(x) mean(x@points))
 
-setMethod("median", "Cdf", function(x) median(x@xs))
+setMethod("median", "DiscreteCdf", function(x) median(x@points))
 
 # calculate the cdf as a function of x according the above
 # discrete representation (note: implementation is simple but slow)
-eval_cdf = function(cdf) function(x) {
+eval_discrete_cdf = function(cdf) function(x) {
     n = length(cdf)
-    for (i in 1:n) { if (x < cdf@xs[i]) return ((i - 1) / n) }
+    for (i in 1:n) { if (x < cdf@points[i]) return ((i - 1) / n) }
     return(1)
 }
 
 # a p-box is represented by two cdf sequences
-# u@xs[1] ... u@xs[n]
-# l@xs[1] ... l@xs[n]
+# u@points[1] ... u@points[n]
+# l@points[1] ... l@points[n]
 
-check_pbox = function(object) {
+check_discrete_pbox = function(object) {
     if (length(object@u) != length(object@l)) "ucdf and lcdf must have same length"
-    else if (any(object@u@xs > object@l@xs)) "ucdf must be left of lcdf"
+    else if (any(object@u@points > object@l@points)) "ucdf must be left of lcdf"
     else TRUE
 }
 
-setClass("PBox", representation(u="Cdf", l="Cdf"),
-         validity=check_pbox)
+setClass("DiscretePBox", representation(u="DiscreteCdf", l="DiscreteCdf"),
+         validity=check_discrete_pbox)
 
-pbox = function(uxs, lxs) new("PBox", u=cdf(uxs), l=cdf(lxs))
+discrete_pbox = function(upoints, lpoints)
+    new("DiscretePBox", u=discrete_cdf(upoints), l=discrete_cdf(lpoints))
 
-setMethod("length", "PBox", function(x) length(x@u@xs))
+setMethod("length", "DiscretePBox", function(x) length(x@u@points))
 
-setMethod("show", "PBox", function(object) {
-    cat("points for upper cdf =", object@u@xs, "\n");
-    cat("points for lower cdf =", object@l@xs, "\n")
+setMethod("show", "DiscretePBox", function(object) {
+    cat("points for upper cdf =", object@u@points, "\n");
+    cat("points for lower cdf =", object@l@points, "\n")
 })
 
 # bot = bottom quantile (cut off at 1/n)
 # top = top quantile (cut off at 1-1/n)
-pbox_norm = function(mean=0, sd=1, bot=0.001, top=0.999, n=200) {
+discrete_pbox_norm = function(mean=0, sd=1, bot=0.001, top=0.999, n=200) {
     stopifnot(bot > 0, top < 1)
     ps = c(min(bot, 1/n), seq(0, 1, length.out=n+1)[2:n], max(top, 1-1/n))
-    xs = sapply(ps, function(x) qnorm(x, mean=mean, sd=sd))
-    pbox(uxs=xs[-(n+1)], lxs=xs[-1])
+    points = sapply(ps, function(x) qnorm(x, mean=mean, sd=sd))
+    discrete_pbox(upoints=points[-(n+1)], lpoints=points[-1])
 }
 
-pbox_unif = function(min=0, max=1, n=200) {
+discrete_pbox_unif = function(min=0, max=1, n=200) {
     ps = seq(0, 1, length.out=n+1)
-    xs = sapply(ps, function(x) qunif(x, min=min, max=max))
-    pbox(uxs=xs[-(n+1)], lxs=xs[-1])
+    points = sapply(ps, function(x) qunif(x, min=min, max=max))
+    discrete_pbox(upoints=points[-(n+1)], lpoints=points[-1])
 }
 
-eval_pbox_u = function(pbox) eval_cdf(pbox@u)
+eval_discrete_pbox_u = function(pbox) eval_discrete_cdf(pbox@u)
 
-eval_pbox_l = function(pbox) eval_cdf(pbox@l)
+eval_discrete_pbox_l = function(pbox) eval_discrete_cdf(pbox@l)
 
-setMethod("mean", "PBox", function(x) c(mean(x@u), mean(x@l)))
+setMethod("mean", "DiscretePBox", function(x) c(mean(x@u), mean(x@l)))
 
-setMethod("median", "PBox", function(x) c(median(x@u), median(x@l)))
+setMethod("median", "DiscretePBox", function(x) c(median(x@u), median(x@l)))
 
 # Williamson & Downs, p. 126-127
-pbox_central_moment = function(pbox, k) {
-    mu = mean(pbox@u@xs)
-    ml = mean(pbox@l@xs)
-    xs1 = pbox@l@xs - mu
-    xs2 = pbox@u@xs - mu
-    xs3 = pbox@l@xs - ml
-    xs4 = pbox@u@xs - ml
-    mml = pmin(xs1, xs2, xs3, xs4) ** k
-    mmu = pmax(xs1, xs2, xs3, xs4) ** k
+discrete_pbox_central_moment = function(pbox, k) {
+    mu = mean(pbox@u@points)
+    ml = mean(pbox@l@points)
+    points1 = pbox@l@points - mu
+    points2 = pbox@u@points - mu
+    points3 = pbox@l@points - ml
+    points4 = pbox@u@points - ml
+    mml = pmin(points1, points2, points3, points4) ** k
+    mmu = pmax(points1, points2, points3, points4) ** k
     c(mean(pmin(mml, mmu)), mean(pmax(mml, mmu)))
 }
 
-setMethod("sd", "PBox", function(x) sqrt(pbox_central_moment(x, 2)))
+setMethod("sd", "DiscretePBox",
+          function(x) sqrt(discrete_pbox_central_moment(x, 2)))
 
 # unary negation
-setMethod("-", signature(e1="PBox", e2="missing"),
-          function(e1) pbox(-rev(e1@l@xs), -rev(e1@u@xs)))
+setMethod("-", signature(e1="DiscretePBox", e2="missing"),
+          function(e1) discrete_pbox(-rev(e1@l@points), -rev(e1@u@points)))
 
-setMethod("+", signature(e1="PBox", e2="numeric"),
-          function(e1, e2) pbox(e1@u@xs+e2, e1@l@xs+e2))
+setMethod("+", signature(e1="DiscretePBox", e2="numeric"),
+          function(e1, e2) discrete_pbox(e1@u@points+e2, e1@l@points+e2))
 
-setMethod("+", signature(e1="numeric", e2="PBox"),
+setMethod("+", signature(e1="numeric", e2="DiscretePBox"),
           function(e1, e2) e2 + e1)
 
-setMethod("-", signature(e1="PBox", e2="numeric"),
+setMethod("-", signature(e1="DiscretePBox", e2="numeric"),
           function(e1, e2) e1 + (-e2))
 
-setMethod("-", signature(e1="numeric", e2="PBox"),
+setMethod("-", signature(e1="numeric", e2="DiscretePBox"),
           function(e1, e2) e1 + (-e2))
 
-setMethod(">=", signature(e1="PBox", e2="numeric"),
-          function(e1, e2) e1@u@xs[1] >= e2)
+setMethod(">=", signature(e1="DiscretePBox", e2="numeric"),
+          function(e1, e2) e1@u@points[1] >= e2)
 
-setMethod(">", signature(e1="PBox", e2="numeric"),
-          function(e1, e2) e1@u@xs[1] > e2)
+setMethod(">", signature(e1="DiscretePBox", e2="numeric"),
+          function(e1, e2) e1@u@points[1] > e2)
 
-setMethod("<=", signature(e1="PBox", e2="numeric"),
-          function(e1, e2) e1@l@xs[length(e1)] <= e2)
+setMethod("<=", signature(e1="DiscretePBox", e2="numeric"),
+          function(e1, e2) e1@l@points[length(e1)] <= e2)
 
-setMethod("<", signature(e1="PBox", e2="numeric"),
-          function(e1, e2) e1@l@xs[length(e1)] < e2)
+setMethod("<", signature(e1="DiscretePBox", e2="numeric"),
+          function(e1, e2) e1@l@points[length(e1)] < e2)
 
 setMethod(
-    "/", signature(e1="numeric", e2="PBox"),
+    "/", signature(e1="numeric", e2="DiscretePBox"),
     function(e1, e2) {
         stopifnot(e1 >= 0, e2 > 0)
-        pbox(rev(e1/e2@l@xs), rev(e1/e2@u@xs))
+        discrete_pbox(rev(e1/e2@l@points), rev(e1/e2@u@points))
     }
 )
 
@@ -137,31 +139,33 @@ sortedfunc = function(func, xs1, xs2) {
 }
 
 # implementation of Williamson & Downs, Figure 14, page 127
-pbox_convolution = function(func) function(pbox1, pbox2) {
+discrete_pbox_convolution = function(func) function(pbox1, pbox2) {
     n = length(pbox1)
     stopifnot(n == length(pbox2))
     ixs = (0:(n-1)) * n
-    pbox(uxs=sortedfunc(func, pbox1@u@xs, pbox2@u@xs)[ixs + 1],
-         lxs=sortedfunc(func, pbox1@l@xs, pbox2@l@xs)[ixs + n])
+    discrete_pbox(
+        upoints=sortedfunc(func, pbox1@u@points, pbox2@u@points)[ixs + 1],
+        lpoints=sortedfunc(func, pbox1@l@points, pbox2@l@points)[ixs + n])
 }
 
-setMethod("+", "PBox", function(e1, e2) pbox_convolution(`+`)(e1, e2))
+setMethod("+", "DiscretePBox", function(e1, e2) discrete_pbox_convolution(`+`)(e1, e2))
 
-setMethod("*", "PBox", function(e1, e2) {
+setMethod("*", "DiscretePBox", function(e1, e2) {
     stopifnot(e1 >= 0, e2 >= 0)
-    pbox_convolution(`*`)(e1, e2)
+    discrete_pbox_convolution(`*`)(e1, e2)
 })
 
-setMethod("-", "PBox", function(e1, e2) e1 + (-e2))
+setMethod("-", "DiscretePBox", function(e1, e2) e1 + (-e2))
 
-setMethod("/", "PBox", function(e1, e2) e1 * (1 / e2))
+setMethod("/", "DiscretePBox", function(e1, e2) e1 * (1 / e2))
 
 # implementation of Williamson & Downs, page 120-121 (cases i and ii)
-pbox_frechet = function(func) function(pbox1, pbox2) {
+discrete_pbox_frechet = function(func) function(pbox1, pbox2) {
     n = length(pbox1)
     stopifnot(n == length(pbox2))
-    pbox(uxs=sapply(1:n, function(i) max(func(pbox1@u@xs[1:i], pbox2@u@xs[i:1]))),
-         lxs=sapply(1:n, function(i) min(func(pbox1@l@xs[i:n], pbox2@l@xs[n:i]))))
+    discrete_pbox(
+        upoints=sapply(1:n, function(i) max(func(pbox1@u@points[1:i], pbox2@u@points[i:1]))),
+        lpoints=sapply(1:n, function(i) min(func(pbox1@l@points[i:n], pbox2@l@points[n:i]))))
 }
 
 setGeneric("%fadd%", function(e1, e2) standardGeneric("%fadd%"))
@@ -169,23 +173,23 @@ setGeneric("%fmul%", function(e1, e2) standardGeneric("%fmul%"))
 setGeneric("%fsub%", function(e1, e2) standardGeneric("%fsub%"))
 setGeneric("%fdiv%", function(e1, e2) standardGeneric("%fdiv%"))
 
-setMethod("%fadd%", "PBox", function(e1, e2) pbox_frechet(`+`)(e1, e2))
+setMethod("%fadd%", "DiscretePBox", function(e1, e2) discrete_pbox_frechet(`+`)(e1, e2))
 
-setMethod("%fmul%", "PBox", function(e1, e2) {
+setMethod("%fmul%", "DiscretePBox", function(e1, e2) {
     stopifnot(e1 >= 0, e2 >= 0)
-    pbox_frechet(`*`)(e1, e2)
+    discrete_pbox_frechet(`*`)(e1, e2)
 })
 
-setMethod("%fsub%", "PBox", function(e1, e2) e1 %fadd% (-e2))
+setMethod("%fsub%", "DiscretePBox", function(e1, e2) e1 %fadd% (-e2))
 
-setMethod("%fdiv%", "PBox", function(e1, e2) e1 %fmul% (1 / e2))
+setMethod("%fdiv%", "DiscretePBox", function(e1, e2) e1 %fmul% (1 / e2))
 
-setMethod("plot", "PBox", function(x) {
+setMethod("plot", "DiscretePBox", function(x) {
     n = length(x)
     cs = rep(2, n)
-    uxs = c(rep(x@u@xs, cs), x@l@xs[length(x)])
+    uxs = c(rep(x@u@points, cs), x@l@points[length(x)])
     uys = rep((0:n) / n, c(1, cs))
-    lxs = c(x@u@xs[1], rep(x@l@xs, cs))
+    lxs = c(x@u@points[1], rep(x@l@points, cs))
     lys = rep((0:n) / n, c(cs, 1))
     plot(uxs, uys, col=2, type="l", xlab="x", ylab="cdf")
     lines(lxs, lys, col=1)
@@ -196,14 +200,14 @@ setMethod("plot", "PBox", function(x) {
 })
 
 test1 = function() {
-    pb = pbox_norm(n=10)
+    pb = discrete_pbox_norm(n=10)
     plot(pb)
     xs = seq(-5,5,0.01)
     lines(xs, sapply(xs, pnorm), type="l")
 }
 
 test2 = function() {
-    pb = pbox_unif(min=-2, max=3, n=10)
+    pb = discrete_pbox_unif(min=-2, max=3, n=10)
     plot(pb)
     xs = seq(-4,4,0.01)
     lines(xs, sapply(xs, function(x) punif(x, min=-2, max=3)), type="l")
@@ -211,16 +215,16 @@ test2 = function() {
 
 # W&D figure 19
 test3 = function() {
-    pb1 = pbox_unif(min=1, max=2, n=40)
-    pb2 = pbox_unif(min=1, max=2, n=40)
+    pb1 = discrete_pbox_unif(min=1, max=2, n=40)
+    pb2 = discrete_pbox_unif(min=1, max=2, n=40)
     pb3 = pb1 + pb2
     plot(pb3)
 }
 
 # W&D figure 21
 test4 = function() {
-    pb1 = pbox_unif(min=0, max=1, n=40)
-    pb2 = pbox_unif(min=0, max=1, n=40)
+    pb1 = discrete_pbox_unif(min=0, max=1, n=40)
+    pb2 = discrete_pbox_unif(min=0, max=1, n=40)
     pb3 = pb1 %fadd% pb2
     plot(pb3)
 }
