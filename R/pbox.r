@@ -56,19 +56,21 @@ setMethod("show", "DiscretePBox", function(object) {
     cat("points for lower cdf =", object@l@points, "\n")
 })
 
-# bot = bottom quantile (cut off at 1/n)
-# top = top quantile (cut off at 1-1/n)
-discrete_pbox_norm = function(mean=0, sd=1, bot=0.001, top=0.999, n=200) {
-    stopifnot(bot > 0, top < 1)
-    ps = c(min(bot, 1/n), seq(0, 1, length.out=n+1)[2:n], max(top, 1-1/n))
+# bot = bottom quantile (cut off at 1/steps)
+# top = top quantile (cut off at 1-1/steps)
+discrete_pbox_norm = function(mean=0, sd=1, bot=0.001, top=0.999, steps=200) {
+    stopifnot(bot >= 0, top <= 1)
+    ps = c(min(bot, 1/steps),
+           seq(0, 1, length.out=steps+1)[2:steps],
+           max(top, 1-1/steps))
     points = sapply(ps, function(x) qnorm(x, mean=mean, sd=sd))
-    discrete_pbox(upoints=points[-(n+1)], lpoints=points[-1])
+    discrete_pbox(upoints=points[-(steps+1)], lpoints=points[-1])
 }
 
-discrete_pbox_unif = function(min=0, max=1, n=200) {
-    ps = seq(0, 1, length.out=n+1)
+discrete_pbox_unif = function(min=0, max=1, steps=200) {
+    ps = seq(0, 1, length.out=steps+1)
     points = sapply(ps, function(x) qunif(x, min=min, max=max))
-    discrete_pbox(upoints=points[-(n+1)], lpoints=points[-1])
+    discrete_pbox(upoints=points[-(steps+1)], lpoints=points[-1])
 }
 
 eval_discrete_pbox_u = function(pbox) eval_discrete_cdf(pbox@u)
@@ -131,6 +133,14 @@ setMethod(
     }
 )
 
+setMethod(
+    "/", signature(e1="DiscretePBox", e2="numeric"),
+    function(e1, e2) {
+        stopifnot(e2 > 0)
+        discrete_pbox(e1@u@points / e2, e1@l@points / e2)
+    }
+)
+
 # apply function on every combination of elements of xs1 and xs2, and sort
 sortedfunc = function(func, xs1, xs2) {
     ys1 = rep(xs1, length(xs2))
@@ -164,8 +174,10 @@ discrete_pbox_frechet = function(func) function(pbox1, pbox2) {
     n = length(pbox1)
     stopifnot(n == length(pbox2))
     discrete_pbox(
-        upoints=sapply(1:n, function(i) max(func(pbox1@u@points[1:i], pbox2@u@points[i:1]))),
-        lpoints=sapply(1:n, function(i) min(func(pbox1@l@points[i:n], pbox2@l@points[n:i]))))
+        upoints=sapply(1:n, function(i)
+            max(func(pbox1@u@points[1:i], pbox2@u@points[i:1]))),
+        lpoints=sapply(1:n, function(i)
+            min(func(pbox1@l@points[i:n], pbox2@l@points[n:i]))))
 }
 
 setGeneric("%fadd%", function(e1, e2) standardGeneric("%fadd%"))
@@ -184,15 +196,15 @@ setMethod("%fsub%", "DiscretePBox", function(e1, e2) e1 %fadd% (-e2))
 
 setMethod("%fdiv%", "DiscretePBox", function(e1, e2) e1 %fmul% (1 / e2))
 
-setMethod("plot", "DiscretePBox", function(x) {
+setMethod("plot", "DiscretePBox", function(x, xlab="x", ylab="cumulative probability", ...) {
     n = length(x)
     cs = rep(2, n)
     uxs = c(rep(x@u@points, cs), x@l@points[length(x)])
     uys = rep((0:n) / n, c(1, cs))
     lxs = c(x@u@points[1], rep(x@l@points, cs))
     lys = rep((0:n) / n, c(cs, 1))
-    plot(uxs, uys, col=2, type="l", xlab="x", ylab="cdf")
-    lines(lxs, lys, col=1)
+    plot(uxs, uys, col=2, type="l", xlab=xlab, ylab=ylab, ...)
+    lines(lxs, lys, col=1, ...)
     legend("topleft",
            legend=c("upper cdf", "lower cdf"),
            col=c(2, 1),
@@ -203,14 +215,14 @@ test1 = function() {
     pb = discrete_pbox_norm(n=10)
     plot(pb)
     xs = seq(-5,5,0.01)
-    lines(xs, sapply(xs, pnorm), type="l")
+    lines(xs, sapply(xs, pnorm), type="l", col=3)
 }
 
 test2 = function() {
     pb = discrete_pbox_unif(min=-2, max=3, n=10)
     plot(pb)
     xs = seq(-4,4,0.01)
-    lines(xs, sapply(xs, function(x) punif(x, min=-2, max=3)), type="l")
+    lines(xs, sapply(xs, function(x) punif(x, min=-2, max=3)), type="l", col=3)
 }
 
 # W&D figure 19
