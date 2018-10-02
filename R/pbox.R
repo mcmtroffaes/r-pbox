@@ -5,6 +5,7 @@
 #' distributed.
 #'
 #' @slot points A sorted numeric vector of length one or more
+#' 
 #' @export
 setClass(
   "DiscreteCdf",
@@ -24,18 +25,22 @@ setClass(
 #' Create a new DiscreteCdf from a given set of sorted points.
 #'
 #' @param points A sorted numeric vector of length one or more
+#' 
 #' @export
 discrete_cdf <- function(points) new("DiscreteCdf", points = points)
 
 #' Number of points.
+#' 
 #' @export
 setMethod("length", "DiscreteCdf", function(x) length(x@points))
 
 #' Distribution mean.
+#' 
 #' @export
 setMethod("mean", "DiscreteCdf", function(x) mean(x@points))
 
 #' Distribution median.
+#' 
 #' @export
 setMethod("median", "DiscreteCdf", function(x) median(x@points))
 
